@@ -1,7 +1,6 @@
 package com.marketplace.member.controller;
 
 import com.marketplace.member.repository.MemberRepository;
-import org.checkerframework.checker.units.qual.A;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
