@@ -42,10 +42,7 @@ public class LoginHandler {
           if (!clientResponse.statusCode().is2xxSuccessful()) {
             return clientResponse.bodyToMono(String.class)
                 .flatMap(body -> ServerResponse.status(clientResponse.statusCode())
-                    .bodyValue(ApiResponse.builder()
-                        .success(false)
-                        .message(body)
-                        .build()));
+                    .bodyValue(ApiResponse.builder().success(false).message(body).build()));
           }
 
           return clientResponse.bodyToMono(String.class)
@@ -58,42 +55,35 @@ public class LoginHandler {
       JsonNode json = objectMapper.readTree(responseBody);
 
       if (json == null || !json.has("success")) {
-        return ServerResponse.badRequest().bodyValue(
-            ApiResponse.builder()
+        return ServerResponse.badRequest()
+            .bodyValue(ApiResponse.builder()
                 .success(false)
                 .message("Invalid login response format")
-                .build()
-        );
+                .build());
       }
 
       boolean success = json.get("success").asBoolean();
       if (!success) {
-        return ServerResponse.badRequest().bodyValue(
-            ApiResponse.builder()
+        return ServerResponse.badRequest()
+            .bodyValue(ApiResponse.builder()
                 .success(false)
                 .message("Login failed")
                 .data(responseBody)
-                .build()
-        );
+                .build());
       }
 
       if (!json.has("data")) {
-        return ServerResponse.badRequest().bodyValue(
-            ApiResponse.builder()
+        return ServerResponse.badRequest()
+            .bodyValue(ApiResponse.builder()
                 .success(false)
                 .message("Login response missing data")
-                .build()
-        );
+                .build());
       }
 
       JsonNode user = json.get("data");
-      if (user == null || !user.has("username") || !user.has("id")) {
-        return ServerResponse.badRequest().bodyValue(
-            ApiResponse.builder()
-                .success(false)
-                .message("Invalid user object")
-                .build()
-        );
+      if (user == null || user.isNull() || !user.has("username") || !user.has("id")) {
+        return ServerResponse.badRequest()
+            .bodyValue(ApiResponse.builder().success(false).message("Invalid user object").build());
       }
 
       String username = user.get("username").asText();
@@ -102,9 +92,9 @@ public class LoginHandler {
       // -------------------------------------
       // TOKEN REUSE WITH NULL CHECK
       // -------------------------------------
-      String existingToken = request.cookies().getFirst("token") != null
-          ? request.cookies().getFirst("token").getValue()
-          : null;
+      String existingToken = request.cookies().getFirst("token") != null ?
+          request.cookies().getFirst("token").getValue() :
+          null;
 
       String tokenToReturn;
 
@@ -140,30 +130,26 @@ public class LoginHandler {
       return ServerResponse.ok()
           .cookie(cookie)
           .header("Authorization", "Bearer " + tokenToReturn)
-          .bodyValue(
-              ApiResponse.builder()
-                  .success(true)
-                  .message("Login successful")
-                  .data(user)
-                  .build()
-          );
+          .bodyValue(ApiResponse.builder()
+              .success(true)
+              .message("Login successful")
+              .data(user)
+              .build());
 
     } catch (JsonProcessingException e) {
       log.error("Malformed JSON response from member service", e);
-      return ServerResponse.status(502).bodyValue(
-          ApiResponse.builder()
+      return ServerResponse.status(502)
+          .bodyValue(ApiResponse.builder()
               .success(false)
               .message("Invalid response from authentication service")
-              .build()
-      );
+              .build());
     } catch (Exception e) {
       log.error("Unexpected error parsing login response", e);
-      return ServerResponse.status(500).bodyValue(
-          ApiResponse.builder()
+      return ServerResponse.status(500)
+          .bodyValue(ApiResponse.builder()
               .success(false)
               .message("Error parsing login response")
-              .build()
-      );
+              .build());
     }
   }
 }
