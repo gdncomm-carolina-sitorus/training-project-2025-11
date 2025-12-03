@@ -1,18 +1,16 @@
 package com.marketplace.api_gateway.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.Map;
 import java.util.function.Function;
-
-import org.springframework.beans.factory.annotation.Value;
 
 @Component
 public class JwtUtils {
@@ -20,84 +18,105 @@ public class JwtUtils {
   @Value("${jwt.secret}")
   private String secret;
 
+  private JwtParser jwtParser;
+
+  // Initialize parser ONCE after secret is injected
+  @Value("${jwt.secret}")
+  public void setSecret(String secret) {
+    this.secret = secret;
+    this.jwtParser = Jwts.parser().verifyWith(getSignKey()) // replaces deprecated setSigningKey
+        .build();
+  }
+
+  // -------------------------------
+  // Generate Token
+  // -------------------------------
   public String generateToken(String username, Long userId) {
-    java.util.Map<String, Object> claims = new java.util.HashMap<>();
-    claims.put("user_id", userId);
+    Map<String, Object> claims = Map.of("user_id", userId);
     return createToken(claims, username);
   }
 
-  private String createToken(java.util.Map<String, Object> claims, String subject) {
+  private String createToken(Map<String, Object> claims, String subject) {
     return Jwts.builder()
-        .setClaims(claims)
-        .setSubject(subject)
-        .setIssuedAt(new Date(System.currentTimeMillis()))
-        .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours
-        .signWith(getSignKey(), io.jsonwebtoken.SignatureAlgorithm.HS256)
+        .claims(claims)
+        .subject(subject)
+        .issuedAt(new Date())
+        .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours
+        .signWith(getSignKey(), Jwts.SIG.HS256) // new signature API
         .compact();
   }
 
+  // -------------------------------
+  // Validation
+  // -------------------------------
   public boolean validateToken(String token) {
-    if (token == null || token.isBlank()) {
+    if (token == null || token.isBlank())
       return false;
-    }
+
     try {
-      Jwts.parser().setSigningKey(getSignKey()).build().parseClaimsJws(token);
+      jwtParser.parse(token);
       return true;
-
     } catch (JwtException | IllegalArgumentException e) {
-      // Malformed, expired, invalid signature, empty, etc.
       return false;
     }
   }
 
+  // -------------------------------
+  // Extract Username
+  // -------------------------------
   public String extractUsername(String token) {
-    if (token == null || token.isBlank()) {
-      return null;
-    }
-
     try {
-      return Jwts.parser()
-          .setSigningKey(getSignKey())
-          .build()
-          .parseClaimsJws(token)
-          .getBody()
-          .getSubject();
-
-    } catch (JwtException | IllegalArgumentException e) {
-      // Includes: MalformedJwtException, SignatureException,
-      // ExpiredJwtException, UnsupportedJwtException
+      return jwtParser.parseSignedClaims(token).getPayload().getSubject();
+    } catch (Exception e) {
       return null;
     }
   }
 
-  public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-    final Claims claims = extractAllClaims(token);
-    return claimsResolver.apply(claims);
+  // -------------------------------
+  // Extract Claims
+  // -------------------------------
+  public <T> T extractClaim(String token, Function<Claims, T> resolver) {
+    Claims claims = jwtParser.parseSignedClaims(token).getPayload();
+    return resolver.apply(claims);
   }
 
-  private Claims extractAllClaims(String token) {
-    return Jwts.parser().setSigningKey(getSignKey()).build().parseClaimsJws(token).getBody();
-  }
-
-  private Key getSignKey() {
+  // -------------------------------
+  // Build Signing Key
+  // -------------------------------
+  private SecretKey getSignKey() {
     byte[] keyBytes = Decoders.BASE64.decode(secret);
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
+  // -------------------------------
+  // Extract from Authorization header or Cookie
+  // -------------------------------
   public String extractToken(ServerRequest request) {
-    // Authorization: Bearer <token>
-    String auth = request.headers().firstHeader("Authorization");
-    if (auth != null && auth.startsWith("Bearer ")) {
-      return auth.substring(7).trim();
-    }
 
-    // Cookie token
+    // Authorization header
+    String auth = request.headers().firstHeader("Authorization");
+    if (auth != null && auth.startsWith("Bearer "))
+      return auth.substring(7).trim();
+
+    // Cookie
     if (request.cookies().getFirst("token") != null) {
       String cookieToken = request.cookies().getFirst("token").getValue();
       if (cookieToken != null && !cookieToken.isBlank()) {
         return cookieToken.trim();
       }
     }
+
     return null;
+  }
+
+  private Claims extractAllClaims(String token) {
+    return jwtParser.parseSignedClaims(token).getPayload();
+  }
+
+  public long getRemainingValidity(String token) {
+    Claims claims = extractAllClaims(token);
+    long expiration = claims.getExpiration().getTime();
+    long now = System.currentTimeMillis();
+    return Math.max(expiration - now, 0);
   }
 }

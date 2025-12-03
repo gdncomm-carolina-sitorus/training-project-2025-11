@@ -46,7 +46,7 @@ public class LoginHandler {
                     .bodyValue(body));
           }
 
-          // Read successful login response
+          // Success → process login
           return clientResponse.bodyToMono(String.class)
               .flatMap(responseBody -> handleSuccessfulLogin(responseBody, request));
         });
@@ -56,7 +56,6 @@ public class LoginHandler {
     try {
       JsonNode json = objectMapper.readTree(responseBody);
 
-      // Safety checks for required fields
       if (json == null || !json.has("success")) {
         return ServerResponse.badRequest().bodyValue("Invalid login response format");
       }
@@ -78,12 +77,12 @@ public class LoginHandler {
       String username = user.get("username").asText();
       Long userId = user.get("id").asLong();
 
-      // --------------------------
-      // Token Reuse Logic
-      // --------------------------
-      String existingToken = request.cookies().getFirst("token") != null ?
-          request.cookies().getFirst("token").getValue() :
-          null;
+      // -------------------------------------
+      // TOKEN REUSE WITH NULL CHECK FIX
+      // -------------------------------------
+      String existingToken = request.cookies().getFirst("token") != null
+          ? request.cookies().getFirst("token").getValue()
+          : null;
 
       String tokenToReturn;
 
@@ -93,23 +92,24 @@ public class LoginHandler {
 
           String tokenUser = jwtUtils.extractUsername(existingToken);
 
-          if (username.equals(tokenUser)) {
+          // FIXED → Null check added
+          if (tokenUser != null && username.equals(tokenUser)) {
             tokenToReturn = existingToken;
           } else {
             tokenToReturn = jwtUtils.generateToken(username, userId);
           }
 
         } catch (Exception e) {
-          log.warn("Existing token invalid. Generating new token. Reason={}", e.getMessage());
+          log.warn("Invalid existing token, generating new one. Reason={}", e.getMessage());
           tokenToReturn = jwtUtils.generateToken(username, userId);
         }
       } else {
         tokenToReturn = jwtUtils.generateToken(username, userId);
       }
 
-      // --------------------------
-      // Secure Cookie
-      // --------------------------
+      // -------------------------------------
+      // SECURE COOKIE
+      // -------------------------------------
       ResponseCookie cookie = ResponseCookie.from("token", tokenToReturn)
           .httpOnly(true)
           .secure(true)
@@ -123,6 +123,7 @@ public class LoginHandler {
           .bodyValue(responseBody);
 
     } catch (Exception e) {
+      log.error("Error parsing login response", e);
       return ServerResponse.status(500)
           .bodyValue("Error parsing login response: " + e.getMessage());
     }
