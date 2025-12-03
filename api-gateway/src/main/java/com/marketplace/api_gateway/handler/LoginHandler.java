@@ -3,6 +3,7 @@ package com.marketplace.api_gateway.handler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketplace.api_gateway.security.JwtUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,7 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Component
 public class LoginHandler {
 
@@ -24,6 +26,7 @@ public class LoginHandler {
   public LoginHandler(WebClient.Builder webClientBuilder,
       JwtUtils jwtUtils,
       ObjectMapper objectMapper) {
+
     this.webClient = webClientBuilder.build();
     this.jwtUtils = jwtUtils;
     this.objectMapper = objectMapper;
@@ -36,77 +39,92 @@ public class LoginHandler {
         .body(request.bodyToMono(Object.class), Object.class)
         .exchangeToMono(clientResponse -> {
 
+          // Handle non-2xx responses
           if (!clientResponse.statusCode().is2xxSuccessful()) {
-            return clientResponse.bodyToMono(byte[].class)
+            return clientResponse.bodyToMono(String.class)
                 .flatMap(body -> ServerResponse.status(clientResponse.statusCode())
                     .bodyValue(body));
           }
 
-          return clientResponse.bodyToMono(String.class).flatMap(responseBody -> {
-            try {
-              JsonNode json = objectMapper.readTree(responseBody);
-
-              boolean success = json.get("success").asBoolean();
-              if (!success) {
-                return ServerResponse.badRequest().bodyValue(responseBody);
-              }
-
-              JsonNode user = json.get("data");
-              String username = user.get("username").asText();
-              Long userId = user.get("id").asLong();
-
-              // -------------------------------
-              // Check existing token in cookie
-              // -------------------------------
-              String existingToken = request.cookies().getFirst("token") != null ?
-                  request.cookies().getFirst("token").getValue() :
-                  null;
-
-              String tokenToReturn;
-
-              if (existingToken != null) {
-                try {
-                  // Validate signature & expiration
-                  jwtUtils.validateToken(existingToken);
-
-                  // Ensure same username
-                  String tokenUser = jwtUtils.extractUsername(existingToken);
-
-                  if (tokenUser.equals(username)) {
-                    tokenToReturn = existingToken; // reuse
-                  } else {
-                    tokenToReturn =
-                        jwtUtils.generateToken(username, userId); // different user → generate new
-                  }
-
-                } catch (Exception e) {
-                  // expired or invalid → generate new
-                  tokenToReturn = jwtUtils.generateToken(username, userId);
-                }
-
-              } else {
-                // No cookie token → generate new
-                tokenToReturn = jwtUtils.generateToken(username, userId);
-              }
-
-              // Create secure cookie
-              ResponseCookie cookie = ResponseCookie.from("token", tokenToReturn)
-                  .httpOnly(true)
-                  .secure(true)
-                  .path("/")
-                  .sameSite("Strict")
-                  .build();
-
-              return ServerResponse.ok()
-                  .cookie(cookie)
-                  .header("Authorization", "Bearer " + tokenToReturn)
-                  .bodyValue(responseBody);
-
-            } catch (Exception e) {
-              return ServerResponse.status(500).bodyValue("Error parsing login response");
-            }
-          });
+          // Read successful login response
+          return clientResponse.bodyToMono(String.class)
+              .flatMap(responseBody -> handleSuccessfulLogin(responseBody, request));
         });
+  }
 
+  private Mono<ServerResponse> handleSuccessfulLogin(String responseBody, ServerRequest request) {
+    try {
+      JsonNode json = objectMapper.readTree(responseBody);
+
+      // Safety checks for required fields
+      if (json == null || !json.has("success")) {
+        return ServerResponse.badRequest().bodyValue("Invalid login response format");
+      }
+
+      boolean success = json.get("success").asBoolean();
+      if (!success) {
+        return ServerResponse.badRequest().bodyValue(responseBody);
+      }
+
+      if (!json.has("data")) {
+        return ServerResponse.badRequest().bodyValue("Login response missing data");
+      }
+
+      JsonNode user = json.get("data");
+      if (user == null || !user.has("username") || !user.has("id")) {
+        return ServerResponse.badRequest().bodyValue("Invalid user object");
+      }
+
+      String username = user.get("username").asText();
+      Long userId = user.get("id").asLong();
+
+      // --------------------------
+      // Token Reuse Logic
+      // --------------------------
+      String existingToken = request.cookies().getFirst("token") != null ?
+          request.cookies().getFirst("token").getValue() :
+          null;
+
+      String tokenToReturn;
+
+      if (existingToken != null) {
+        try {
+          jwtUtils.validateToken(existingToken);
+
+          String tokenUser = jwtUtils.extractUsername(existingToken);
+
+          if (username.equals(tokenUser)) {
+            tokenToReturn = existingToken;
+          } else {
+            tokenToReturn = jwtUtils.generateToken(username, userId);
+          }
+
+        } catch (Exception e) {
+          log.warn("Existing token invalid. Generating new token. Reason={}", e.getMessage());
+          tokenToReturn = jwtUtils.generateToken(username, userId);
+        }
+      } else {
+        tokenToReturn = jwtUtils.generateToken(username, userId);
+      }
+
+      // --------------------------
+      // Secure Cookie
+      // --------------------------
+      ResponseCookie cookie = ResponseCookie.from("token", tokenToReturn)
+          .httpOnly(true)
+          .secure(true)
+          .path("/")
+          .sameSite("Strict")
+          .build();
+
+      return ServerResponse.ok()
+          .cookie(cookie)
+          .header("Authorization", "Bearer " + tokenToReturn)
+          .bodyValue(responseBody);
+
+    } catch (Exception e) {
+      return ServerResponse.status(500)
+          .bodyValue("Error parsing login response: " + e.getMessage());
+    }
   }
 }

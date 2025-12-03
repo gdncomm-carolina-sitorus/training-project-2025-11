@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -15,39 +16,34 @@ public class ProxyHandler {
   private final WebClient webClient;
 
   public ProxyHandler(WebClient.Builder webClientBuilder) {
-    this.webClient = webClientBuilder.build();
+    this.webClient = webClientBuilder.clone()  // avoid reusing config
+        .build();
   }
 
   public Mono<ServerResponse> proxyRequest(ServerRequest request, String baseUrl) {
 
-    String fullUrl = baseUrl + request.path();
+    String fullUrl = baseUrl + request.uri().getPath();
 
-    // Step 1 — Read the request body ONCE and cache it
-    Mono<byte[]> cachedBody = request.bodyToMono(byte[].class).defaultIfEmpty(new byte[0]);
+    // STREAM the request body (NOT buffering)
+    Flux<DataBuffer> requestBody = request.bodyToFlux(DataBuffer.class);
 
-    return cachedBody.flatMap(body ->
+    return webClient.method(request.method()).uri(fullUrl).headers(headers -> {
+      headers.addAll(request.headers().asHttpHeaders());
+      headers.remove(HttpHeaders.CONTENT_LENGTH);
+      headers.remove(HttpHeaders.HOST);
+    }).body(requestBody, DataBuffer.class).exchangeToMono(clientResponse -> {
 
-    webClient
-        .method(request.method())
-        .uri(fullUrl)
-        .headers(headers -> {
-          headers.addAll(request.headers().asHttpHeaders());
-          headers.remove(HttpHeaders.CONTENT_LENGTH); // prevent conflicts
-        })
-        .bodyValue(body)
-        .retrieve()
-        .onStatus(status -> true, clientResponse -> Mono.empty())
-        .toEntityFlux(DataBuffer.class)
-        .flatMap(entity -> {
-          HttpStatusCode status = entity.getStatusCode();
-          HttpHeaders responseHeaders = new HttpHeaders();
-          responseHeaders.addAll(entity.getHeaders());
-          responseHeaders.remove(HttpHeaders.CONTENT_LENGTH);
+      HttpStatusCode status = clientResponse.statusCode();
+      HttpHeaders clientHeaders = new HttpHeaders();
+      clientHeaders.addAll(clientResponse.headers().asHttpHeaders());
+      clientHeaders.remove(HttpHeaders.CONTENT_LENGTH);
 
-          return ServerResponse
-              .status(status)
-              .headers(h -> h.addAll(responseHeaders))
-              .body(entity.getBody(), DataBuffer.class);
-        }));
+      // Stream response body (Flux)
+      Flux<DataBuffer> responseBody = clientResponse.bodyToFlux(DataBuffer.class);
+
+      return ServerResponse.status(status)
+          .headers(h -> h.addAll(clientHeaders))
+          .body(responseBody, DataBuffer.class);
+    });
   }
 }

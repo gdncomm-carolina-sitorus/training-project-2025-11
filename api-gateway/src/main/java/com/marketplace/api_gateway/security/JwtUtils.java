@@ -12,10 +12,13 @@ import java.security.Key;
 import java.util.Date;
 import java.util.function.Function;
 
+import org.springframework.beans.factory.annotation.Value;
+
 @Component
 public class JwtUtils {
-  public static final String SECRET =
-      "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
+
+  @Value("${jwt.secret}")
+  private String secret;
 
   public String generateToken(String username, Long userId) {
     java.util.Map<String, Object> claims = new java.util.HashMap<>();
@@ -38,7 +41,7 @@ public class JwtUtils {
       return false;
     }
     try {
-      Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token);
+      Jwts.parser().setSigningKey(getSignKey()).build().parseClaimsJws(token);
       return true;
 
     } catch (JwtException | IllegalArgumentException e) {
@@ -53,7 +56,7 @@ public class JwtUtils {
     }
 
     try {
-      return Jwts.parserBuilder()
+      return Jwts.parser()
           .setSigningKey(getSignKey())
           .build()
           .parseClaimsJws(token)
@@ -73,11 +76,11 @@ public class JwtUtils {
   }
 
   private Claims extractAllClaims(String token) {
-    return Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token).getBody();
+    return Jwts.parser().setSigningKey(getSignKey()).build().parseClaimsJws(token).getBody();
   }
 
   private Key getSignKey() {
-    byte[] keyBytes = Decoders.BASE64.decode(SECRET);
+    byte[] keyBytes = Decoders.BASE64.decode(secret);
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
