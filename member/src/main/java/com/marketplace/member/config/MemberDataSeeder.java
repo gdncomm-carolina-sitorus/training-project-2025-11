@@ -4,9 +4,11 @@ import com.marketplace.member.command.RegisterMemberCommand;
 import com.marketplace.member.model.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("Dev")
 public class MemberDataSeeder implements CommandLineRunner {
   @Autowired
   RegisterMemberCommand registerMemberCommand;

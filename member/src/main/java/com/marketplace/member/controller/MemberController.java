@@ -17,30 +17,19 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-public class AuthController {
-  @Autowired
-  private RegisterMemberCommand registerMemberCommand;
-
-  @Autowired
-  LoginMemberCommand loginMemberCommand;
+@RequestMapping("/api/members")
+public class MemberController {
 
   @Autowired
   GetMemberDetailCommand getMemberDetailCommand;
 
-  @PostMapping("/register")
-  public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
-    registerMemberCommand.execute(request);
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(Map.of("success", true, "message", "User created"));
-  }
-
-  @PostMapping("/login")
-  public ApiResponse<UserResponse> login(@RequestBody LoginRequest request) {
-    return loginMemberCommand.execute(request);
-  }
-
   @GetMapping("/{id}")
-  public Member getMember(@PathVariable Long id) {
-    return getMemberDetailCommand.execute(id);
+  public ResponseEntity<ApiResponse<Member>> getMember(@PathVariable Long id) {
+    Member member = getMemberDetailCommand.execute(id);
+    return ResponseEntity.ok(ApiResponse.<Member>builder()
+        .success(true)
+        .message("Product retrieved successfully")
+        .data(member)
+        .build());
   }
 }

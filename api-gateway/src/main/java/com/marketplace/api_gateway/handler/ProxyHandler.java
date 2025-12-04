@@ -38,19 +38,21 @@ public class ProxyHandler {
   public ProxyHandler(WebClient.Builder webClientBuilder) {
 
     HttpClient httpClient = HttpClient.create()
-        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)   // TCP connect timeout
-        .responseTimeout(Duration.ofSeconds(responseTimeout))              // downstream service timeout
-        .doOnConnected(conn -> conn.addHandlerLast(new ReadTimeoutHandler(readTimeout))   // read timeout
-            .addHandlerLast(new WriteTimeoutHandler(writeTimeout))  // write timeout
+        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout) // TCP connect timeout
+        .responseTimeout(Duration.ofSeconds(responseTimeout)) // downstream service timeout
+        .doOnConnected(conn -> conn.addHandlerLast(new ReadTimeoutHandler(readTimeout)) // read timeout
+            .addHandlerLast(new WriteTimeoutHandler(writeTimeout)) // write timeout
         );
 
-    this.webClient =
-        webClientBuilder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
+    this.webClient = webClientBuilder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
   }
 
   public Mono<ServerResponse> proxyRequest(ServerRequest request, String baseUrl) {
 
-    String fullUrl = baseUrl + request.uri().getPath();
+    java.net.URI uri = request.uri();
+    String query = uri.getQuery();
+    String path = uri.getPath();
+    String fullUrl = baseUrl + path + (query != null ? "?" + query : "");
 
     // Stream body (no buffering)
     Flux<DataBuffer> requestBody = request.bodyToFlux(DataBuffer.class);
@@ -67,11 +69,13 @@ public class ProxyHandler {
       responseHeaders.addAll(clientResponse.headers().asHttpHeaders());
       responseHeaders.remove(HttpHeaders.CONTENT_LENGTH);
 
-      Flux<DataBuffer> responseBody = clientResponse.bodyToFlux(DataBuffer.class);
-
-      return ServerResponse.status(status)
-          .headers(h -> h.addAll(responseHeaders))
-          .body(responseBody, DataBuffer.class);
+      return clientResponse.bodyToMono(byte[].class)
+          .flatMap(body -> ServerResponse.status(status)
+              .headers(h -> h.addAll(responseHeaders))
+              .bodyValue(body))
+          .switchIfEmpty(ServerResponse.status(status)
+              .headers(h -> h.addAll(responseHeaders))
+              .build());
     });
   }
 }
