@@ -29,34 +29,40 @@ public class CartService {
   }
 
   public Mono<Cart> getCartWithDetails(String customerId) {
-
     return getCart(customerId).flatMap(cart -> {
+      // If cart has no items, return empty to trigger switchIfEmpty in controller
+      if (cart.getItems() == null || cart.getItems().isEmpty()) {
+        return Mono.empty();
+      }
 
-      Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
-          .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
+      Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId);
 
       Flux<CartItem> itemsFlux = Flux.fromIterable(cart.getItems())
-          .flatMap(item -> productClient.getProductById(item.getProductId()).map(product -> {
-            item.setProduct(product);
-            item.setSubtotal(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
-            return item;
-          }).defaultIfEmpty(item));
+          .flatMap(item -> productClient.getProductById(item.getProductId())
+              .switchIfEmpty(Mono.error(new RuntimeException("Product not found: " + item.getProductId())))
+              .map(product -> {
+                item.setProduct(product);
+                item.setSubtotal(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                return item;
+              })
+          );
 
-      return Mono.zip(memberMono, itemsFlux.collectList()).map(tuple -> {
-        MemberDetail member = tuple.getT1();
-        List<CartItem> items = tuple.getT2();
+      return Mono.zip(memberMono, itemsFlux.collectList())
+          .map(tuple -> {
+            MemberDetail member = tuple.getT1();
+            List<CartItem> items = tuple.getT2();
 
-        cart.setCustomer(member);
-        cart.setItems(items);
+            cart.setCustomer(member);
+            cart.setItems(items);
 
-        BigDecimal total = items.stream()
-            .map(i -> i.getSubtotal() != null ? i.getSubtotal() : BigDecimal.ZERO)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal total = items.stream()
+                .map(i -> i.getSubtotal() != null ? i.getSubtotal() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        cart.setTotalPrice(total);
+            cart.setTotalPrice(total);
 
-        return cart;
-      });
+            return cart;
+          });
     });
   }
 

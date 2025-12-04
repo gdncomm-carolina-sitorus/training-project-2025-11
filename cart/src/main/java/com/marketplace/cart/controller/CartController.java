@@ -33,7 +33,7 @@ public class CartController {
             .body(ApiResponse.<Cart>builder()
                 .success(true)
                 .message("Cart is empty")
-                .data(null)
+                .data(new Cart())
                 .build())))
         .onErrorResume(ex -> Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(ApiResponse.<Cart>builder()

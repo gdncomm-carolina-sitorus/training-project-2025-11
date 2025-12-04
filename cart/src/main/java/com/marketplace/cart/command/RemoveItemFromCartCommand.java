@@ -21,10 +21,7 @@ public class RemoveItemFromCartCommand implements Command<ApiResponse<Cart>, Rem
       Cart cart = cartRepository.findByCustomerId(request.getCustomerId()).orElse(null);
 
       if (cart == null) {
-        return ApiResponse.<Cart>builder()
-            .success(false)
-            .message("Cart not found")
-            .build();
+        return ApiResponse.<Cart>builder().success(false).message("Cart not found").build();
       }
 
       String productId = request.getProductId();
@@ -41,12 +38,9 @@ public class RemoveItemFromCartCommand implements Command<ApiResponse<Cart>, Rem
         cart.getItems().clear();
       }
 
-      Cart savedCart = cartRepository.save(cart);
+      cartRepository.save(cart);
 
-      return ApiResponse.<Cart>builder()
-          .success(true)
-          .message("Item removed successfully")
-          .build();
+      return ApiResponse.<Cart>builder().success(true).message("Item removed successfully").build();
     }).subscribeOn(Schedulers.boundedElastic());
   }
 }
