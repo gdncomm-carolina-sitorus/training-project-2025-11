@@ -2,13 +2,18 @@ package com.marketplace.cart.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.MemberDetail;
+import com.marketplace.cart.model.ProductDetail;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 @Component
+@Slf4j
 public class MemberClient {
 
   private final WebClient webClient;
@@ -27,25 +32,12 @@ public class MemberClient {
     return webClient.get()
         .uri(memberServiceUrl + "/api/members/" + customerId)
         .retrieve()
-        .bodyToMono(String.class)
-        .map(this::parseMemberResponse)
-        .onErrorResume(e -> Mono.empty());
-  }
-
-  private MemberDetail parseMemberResponse(String responseBody) {
-    try {
-      JsonNode root = objectMapper.readTree(responseBody);
-      if (root.has("data")) {
-        JsonNode data = root.get("data");
-        return MemberDetail.builder()
-            .id(data.get("id").asLong())
-            .username(data.get("username").asText())
-            .email(data.get("email").asText())
-            .build();
-      }
-      return null;
-    } catch (Exception e) {
-      return null;
-    }
+        .bodyToMono(new ParameterizedTypeReference<ApiResponse<MemberDetail>>() {
+        })
+        .map(ApiResponse::getData)
+        .onErrorResume(e -> {
+          log.error("Failed to fetch product {}: {}", customerId, e.getMessage(), e);
+          return Mono.empty();
+        });
   }
 }

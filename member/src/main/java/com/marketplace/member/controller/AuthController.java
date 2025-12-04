@@ -3,7 +3,6 @@ package com.marketplace.member.controller;
 import com.marketplace.member.command.GetMemberDetailCommand;
 import com.marketplace.member.command.LoginMemberCommand;
 import com.marketplace.member.command.RegisterMemberCommand;
-import com.marketplace.member.entity.Member;
 import com.marketplace.member.model.ApiResponse;
 import com.marketplace.member.model.LoginRequest;
 import com.marketplace.member.model.RegisterRequest;
@@ -37,10 +36,5 @@ public class AuthController {
   @PostMapping("/login")
   public ApiResponse<UserResponse> login(@RequestBody LoginRequest request) {
     return loginMemberCommand.execute(request);
-  }
-
-  @GetMapping("/{id}")
-  public Member getMember(@PathVariable Long id) {
-    return getMemberDetailCommand.execute(id);
   }
 }

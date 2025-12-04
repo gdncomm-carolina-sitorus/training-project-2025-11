@@ -30,14 +30,13 @@ public class CartController {
   }
 
   @PostMapping("/add")
-  public Mono<ResponseEntity<ApiResponse<Cart>>> addItem(@RequestHeader("X-User-Id") String customerId,
+  public ResponseEntity<ApiResponse<Cart>> addItem(@RequestHeader("X-User-Id") String customerId,
       @Valid @RequestBody CartItem item) {
-    return cartService.addItem(customerId, item)
-        .map(cart -> ResponseEntity.ok(ApiResponse.<Cart>builder()
-            .success(true)
-            .message("Item added to cart successfully")
-            .data(cart)
-            .build()));
+    Cart cart = cartService.addItem(customerId, item);
+    return ResponseEntity.ok(ApiResponse.<Cart>builder()
+        .success(true)
+        .message("Item added to cart successfully")
+        .build());
   }
 
   @DeleteMapping("/remove/{productId}")

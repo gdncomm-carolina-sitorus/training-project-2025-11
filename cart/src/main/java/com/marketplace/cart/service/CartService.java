@@ -55,38 +55,8 @@ public class CartService {
     });
   }
 
-  public Mono<Cart> addItem(String customerId, CartItem item) {
-    Cart cart = addItemCommand.execute(new AddItemRequest(customerId, item));
-
-    Flux<CartItem> itemsFlux = Flux.fromIterable(cart.getItems())
-        .flatMap(cartItem -> productClient.getProductById(cartItem.getProductId()).map(product -> {
-          cartItem.setProduct(product);
-          cartItem.setSubtotal(product.getPrice()
-              .multiply(BigDecimal.valueOf(cartItem.getQuantity())));
-          return cartItem;
-        }).defaultIfEmpty(cartItem));
-
-    Mono<List<CartItem>> enrichedItemsMono = itemsFlux.collectList();
-
-    Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
-        .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
-
-    return Mono.zip(enrichedItemsMono, memberMono).map(tuple -> {
-      List<CartItem> enrichedItems = tuple.getT1();
-      MemberDetail member = tuple.getT2();
-
-      cart.setItems(enrichedItems);
-      cart.setCustomer(member);
-
-      BigDecimal totalPrice = enrichedItems.stream()
-          .map(CartItem::getSubtotal)
-          .filter(Objects::nonNull)
-          .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-      cart.setTotalPrice(totalPrice);
-
-      return cart;
-    });
+  public Cart addItem(String customerId, CartItem item) {
+    return addItemCommand.execute(new AddItemRequest(customerId, item));
   }
 
   public Cart removeItem(String customerId, String productId) {

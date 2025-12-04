@@ -2,8 +2,11 @@ package com.marketplace.cart.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.ProductDetail;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -11,6 +14,7 @@ import reactor.core.publisher.Mono;
 import java.math.BigDecimal;
 
 @Component
+@Slf4j
 public class ProductClient {
 
   private final WebClient webClient;
@@ -29,26 +33,12 @@ public class ProductClient {
     return webClient.get()
         .uri(productServiceUrl + "/api/products/" + productId)
         .retrieve()
-        .bodyToMono(String.class)
-        .map(this::parseProductResponse)
-        .onErrorResume(e -> Mono.empty()); // Return empty if product not found or error
-  }
-
-  private ProductDetail parseProductResponse(String responseBody) {
-    try {
-      JsonNode root = objectMapper.readTree(responseBody);
-      if (root.has("data")) {
-        JsonNode data = root.get("data");
-        return ProductDetail.builder()
-            .id(data.get("id").asText())
-            .name(data.get("name").asText())
-            .description(data.has("description") ? data.get("description").asText() : null)
-            .price(new BigDecimal(data.get("price").asText()))
-            .build();
-      }
-      return null;
-    } catch (Exception e) {
-      return null;
-    }
+        .bodyToMono(new ParameterizedTypeReference<ApiResponse<ProductDetail>>() {
+        })
+        .map(ApiResponse::getData)
+        .onErrorResume(e -> {
+          log.error("Failed to fetch product {}: {}", productId, e.getMessage(), e);
+          return Mono.empty();
+        });
   }
 }
