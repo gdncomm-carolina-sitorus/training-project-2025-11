@@ -1,6 +1,7 @@
 package com.marketplace.product.command;
 
 import com.marketplace.product.entity.Product;
+import com.marketplace.product.exception.ProductNotFoundException;
 import com.marketplace.product.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,6 @@ public class GetProductDetailCommand implements Command<Product, String> {
   @Override
   public Product execute(String id) {
     return productRepository.findById(id)
-        .orElseThrow(() -> new RuntimeException("Product not found"));
+        .orElseThrow(() -> new ProductNotFoundException(id));
   }
 }

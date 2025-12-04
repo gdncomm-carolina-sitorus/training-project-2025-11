@@ -30,12 +30,11 @@ public class CartService {
 
   public Mono<Cart> getCartWithDetails(String customerId) {
 
-    Mono<Cart> cartMono = getCart(customerId);
+    return getCart(customerId).flatMap(cart -> {
 
-    Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
-        .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
+      Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
+          .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
 
-    return cartMono.flatMap(cart -> {
       Flux<CartItem> itemsFlux = Flux.fromIterable(cart.getItems())
           .flatMap(item -> productClient.getProductById(item.getProductId()).map(product -> {
             item.setProduct(product);
@@ -55,22 +54,22 @@ public class CartService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         cart.setTotalPrice(total);
+
         return cart;
       });
     });
   }
 
   public Mono<Cart> addItem(String customerId, CartItem item) {
-    return addItemCommand.execute(
-        new AddItemRequest(customerId, item));
+    return productClient.getProductById(item.getProductId())
+        .flatMap(product -> addItemCommand.execute(new AddItemRequest(customerId, item)));
   }
 
-  public Mono<Cart> removeItem(String customerId, String productId) {
-    return removeItemCommand.execute(
-        new RemoveItemRequest(customerId, productId));
+  public Mono<ApiResponse<Cart>> removeItem(String customerId, String productId) {
+    return removeItemCommand.execute(new RemoveItemRequest(customerId, productId));
   }
 
-  public Mono<Cart> clearCart(String customerId) {
+  public Mono<ApiResponse<Cart>> clearCart(String customerId) {
     return removeItemCommand.execute(new RemoveItemRequest(customerId, null));
   }
 }

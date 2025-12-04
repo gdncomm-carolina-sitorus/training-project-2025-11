@@ -41,16 +41,14 @@ public class AuthenticationFilter implements HandlerFilterFunction<ServerRespons
     try {
       // Validate token signature + expiration
       if (!jwtUtils.validateToken(token)) {
-        ApiResponse<Object> res =
-            ApiResponse.builder().success(false).message("Invalid or expired token").build();
+        ApiResponse<Object> res = ApiResponse.builder().success(false).message("Invalid or expired token").build();
         return ServerResponse.status(401).bodyValue(res);
       }
 
       // Check if token is blacklisted
       return blacklistService.isBlacklisted(token).flatMap(isBlacklisted -> {
         if (isBlacklisted) {
-          ApiResponse<Object> res =
-              ApiResponse.builder().success(false).message("Token has been invalidated").build();
+          ApiResponse<Object> res = ApiResponse.builder().success(false).message("Token has been invalidated").build();
           return ServerResponse.status(401).bodyValue(res);
         }
 
@@ -77,6 +75,7 @@ public class AuthenticationFilter implements HandlerFilterFunction<ServerRespons
         ServerRequest modifiedRequest = ServerRequest.from(request)
             .header("X-Username", username)
             .header("X-User-Id", String.valueOf(userId))
+            .body(request.bodyToFlux(org.springframework.core.io.buffer.DataBuffer.class))
             .build();
 
         return next.handle(modifiedRequest);
@@ -84,38 +83,32 @@ public class AuthenticationFilter implements HandlerFilterFunction<ServerRespons
 
     } catch (ExpiredJwtException e) {
       log.warn("Expired JWT token: {}", e.getMessage());
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Token has expired").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Token has expired").build();
       return ServerResponse.status(401).bodyValue(res);
 
     } catch (SignatureException e) {
       log.warn("Invalid JWT signature: {}", e.getMessage());
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Invalid token signature").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Invalid token signature").build();
       return ServerResponse.status(401).bodyValue(res);
 
     } catch (MalformedJwtException e) {
       log.warn("Malformed JWT token: {}", e.getMessage());
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Malformed JWT token").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Malformed JWT token").build();
       return ServerResponse.status(401).bodyValue(res);
 
     } catch (UnsupportedJwtException e) {
       log.warn("Unsupported JWT token: {}", e.getMessage());
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Unsupported JWT token").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Unsupported JWT token").build();
       return ServerResponse.status(401).bodyValue(res);
 
     } catch (IllegalArgumentException e) {
       log.warn("JWT missing or empty: {}", e.getMessage());
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Invalid token").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Invalid token").build();
       return ServerResponse.status(401).bodyValue(res);
 
     } catch (Exception e) {
       log.error("Unexpected error validating JWT", e);
-      ApiResponse<Object> res =
-          ApiResponse.builder().success(false).message("Unauthorized").build();
+      ApiResponse<Object> res = ApiResponse.builder().success(false).message("Unauthorized").build();
       return ServerResponse.status(401).bodyValue(res);
     }
   }

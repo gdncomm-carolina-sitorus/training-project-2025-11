@@ -18,13 +18,8 @@ public class GetCartCommand implements Command<Cart, GetCartRequest> {
   public Mono<Cart> execute(GetCartRequest request) {
     String customerId = request.getCustomerId();
 
-    return Mono.fromCallable(() ->
-        cartRepository.findById(customerId)
-            .orElseGet(() -> {
-              Cart cart = new Cart();
-              cart.setCustomerId(customerId);
-              return cartRepository.save(cart);
-            })
-    ).subscribeOn(Schedulers.boundedElastic());
+    return Mono.fromCallable(() -> cartRepository.findById(customerId))
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(optionalCart -> optionalCart.map(Mono::just).orElseGet(Mono::empty));
   }
 }

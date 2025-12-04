@@ -1,10 +1,12 @@
 package com.marketplace.cart.controller;
 
+import com.marketplace.cart.exception.ProductNotFoundInCartException;
 import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.Cart;
 import com.marketplace.cart.model.CartItem;
 import com.marketplace.cart.service.CartService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -20,14 +22,25 @@ public class CartController {
   }
 
   @GetMapping
-  public reactor.core.publisher.Mono<ResponseEntity<ApiResponse<Cart>>> getCart(
-      @RequestHeader("X-User-Id") String customerId) {
+  public Mono<ResponseEntity<ApiResponse<Cart>>> getCart(@RequestHeader("X-User-Id") String customerId) {
     return cartService.getCartWithDetails(customerId)
         .map(cart -> ResponseEntity.ok(ApiResponse.<Cart>builder()
             .success(true)
             .message("Cart retrieved successfully")
             .data(cart)
-            .build()));
+            .build()))
+        .switchIfEmpty(Mono.just(ResponseEntity.status(HttpStatus.OK)
+            .body(ApiResponse.<Cart>builder()
+                .success(true)
+                .message("Cart is empty")
+                .data(null)
+                .build())))
+        .onErrorResume(ex -> Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiResponse.<Cart>builder()
+                .success(false)
+                .message(ex.getMessage())
+                .data(null)
+                .build())));
   }
 
   @PostMapping("/add")
@@ -37,17 +50,20 @@ public class CartController {
         .map(cart -> ResponseEntity.ok(ApiResponse.<Cart>builder()
             .success(true)
             .message("Item added to cart successfully")
-            .build()));
+            .data(null)
+            .build()))
+        .onErrorResume(ex -> Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiResponse.<Cart>builder()
+                .success(false)
+                .message(ex.getMessage())
+                .data(null)
+                .build())));
   }
 
   @DeleteMapping("/remove/{productId}")
   public Mono<ResponseEntity<ApiResponse<Cart>>> removeItem(@RequestHeader("X-User-Id") String customerId,
       @PathVariable String productId) {
-    return cartService.removeItem(customerId, productId)
-        .map(cart -> ResponseEntity.ok(ApiResponse.<Cart>builder()
-            .success(true)
-            .message("Item removed from cart successfully")
-            .build()));
+    return cartService.removeItem(customerId, productId).map(ResponseEntity::ok);
   }
 
   @DeleteMapping("/clear")

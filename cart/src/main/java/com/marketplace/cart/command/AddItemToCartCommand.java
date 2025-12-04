@@ -18,12 +18,11 @@ public class AddItemToCartCommand implements Command<Cart, AddItemRequest> {
   @Override
   public Mono<Cart> execute(AddItemRequest request) {
     return Mono.fromCallable(() -> {
-      Cart cart = cartRepository.findById(request.getCustomerId())
-          .orElseGet(() -> {
-            Cart c = new Cart();
-            c.setCustomerId(request.getCustomerId());
-            return c;
-          });
+      Cart cart = cartRepository.findById(request.getCustomerId()).orElseGet(() -> {
+        Cart c = new Cart();
+        c.setCustomerId(request.getCustomerId());
+        return c;
+      });
 
       CartItem item = request.getItem();
 
@@ -31,12 +30,8 @@ public class AddItemToCartCommand implements Command<Cart, AddItemRequest> {
           .stream()
           .filter(i -> i.getProductId().equals(item.getProductId()))
           .findFirst()
-          .ifPresentOrElse(
-              existingItem -> existingItem.setQuantity(
-                  existingItem.getQuantity() + item.getQuantity()
-              ),
-              () -> cart.getItems().add(item)
-          );
+          .ifPresentOrElse(existingItem -> existingItem.setQuantity(
+              existingItem.getQuantity() + item.getQuantity()), () -> cart.getItems().add(item));
 
       return cartRepository.save(cart);
     }).subscribeOn(Schedulers.boundedElastic());

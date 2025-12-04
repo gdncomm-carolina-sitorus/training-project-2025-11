@@ -14,37 +14,14 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.netty.http.client.HttpClient;
-
-import java.time.Duration;
 
 @Component
 public class ProxyHandler {
 
   private final WebClient webClient;
 
-  @Value("${gateway.webclient.connect-timeout-ms}")
-  private int connectTimeout;
-
-  @Value("${gateway.webclient.response-timeout-seconds}")
-  private int responseTimeout;
-
-  @Value("${gateway.webclient.read-timeout-seconds}")
-  private int readTimeout;
-
-  @Value("${gateway.webclient.write-timeout-seconds}")
-  private int writeTimeout;
-
-  public ProxyHandler(WebClient.Builder webClientBuilder) {
-
-    HttpClient httpClient = HttpClient.create()
-        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout) // TCP connect timeout
-        .responseTimeout(Duration.ofSeconds(responseTimeout)) // downstream service timeout
-        .doOnConnected(conn -> conn.addHandlerLast(new ReadTimeoutHandler(readTimeout)) // read timeout
-            .addHandlerLast(new WriteTimeoutHandler(writeTimeout)) // write timeout
-        );
-
-    this.webClient = webClientBuilder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
+  public ProxyHandler(WebClient webClient) {
+    this.webClient = webClient;
   }
 
   public Mono<ServerResponse> proxyRequest(ServerRequest request, String baseUrl) {

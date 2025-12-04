@@ -1,6 +1,5 @@
 package com.marketplace.cart.client;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.ProductDetail;
@@ -9,9 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
-
-import java.math.BigDecimal;
 
 @Component
 @Slf4j
@@ -36,9 +34,18 @@ public class ProductClient {
         .bodyToMono(new ParameterizedTypeReference<ApiResponse<ProductDetail>>() {
         })
         .map(ApiResponse::getData)
-        .onErrorResume(e -> {
-          log.error("Failed to fetch product {}: {}", productId, e.getMessage(), e);
-          return Mono.empty();
+        .onErrorResume(WebClientResponseException.class, e -> {
+          try {
+            ApiResponse<?> errorResponse =
+                objectMapper.readValue(e.getResponseBodyAsString(), ApiResponse.class);
+            return Mono.error(new RuntimeException(errorResponse.getMessage()));
+          } catch (Exception parseException) {
+            log.error("Failed to parse error response from product service for product {}: {}",
+                productId,
+                e.getMessage(),
+                parseException);
+            return Mono.error(new RuntimeException("Product service unavailable"));
+          }
         });
   }
 }
