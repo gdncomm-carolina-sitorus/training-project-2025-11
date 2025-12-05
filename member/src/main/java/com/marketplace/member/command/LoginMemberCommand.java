@@ -1,6 +1,8 @@
 package com.marketplace.member.command;
 
 import com.marketplace.member.entity.Member;
+import com.marketplace.member.exception.InvalidPasswordException;
+import com.marketplace.member.exception.UserNotFoundException;
 import com.marketplace.member.model.ApiResponse;
 import com.marketplace.member.model.LoginRequest;
 import com.marketplace.member.model.UserResponse;
@@ -21,12 +23,11 @@ public class LoginMemberCommand implements Command<ApiResponse<UserResponse>, Lo
   @Override
   public ApiResponse<UserResponse> execute(LoginRequest request) {
     Member member = memberRepository.findByUsername(request.getUsername())
-        .orElseThrow(() -> new RuntimeException("User not found"));
+        .orElseThrow(() -> new UserNotFoundException(request.getUsername()));
 
     if (!passwordEncoder.matches(request.getPassword(), member.getPassword())) {
-      throw new RuntimeException("Invalid password");
+      throw new InvalidPasswordException();
     }
-
     UserResponse user = new UserResponse(member.getId(), member.getUsername());
 
     return ApiResponse.<UserResponse>builder()

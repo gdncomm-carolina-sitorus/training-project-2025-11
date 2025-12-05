@@ -30,10 +30,20 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(responseBody);
   }
 
-  @ExceptionHandler(RuntimeException.class)
-  public ResponseEntity<Map<String, Object>> handleDuplicateResource(RuntimeException ex) {
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(Map.of("success", false, "message", ex.getMessage()));
+  @ExceptionHandler(UsernameAlreadyExistsException.class)
+  public ResponseEntity<?> handleUsernameExists(UsernameAlreadyExistsException ex) {
+    return ResponseEntity.badRequest().body(Map.of(
+        "success", false,
+        "message", ex.getMessage()
+    ));
+  }
+
+  @ExceptionHandler(EmailAlreadyExistsException.class)
+  public ResponseEntity<?> handleEmailExists(EmailAlreadyExistsException ex) {
+    return ResponseEntity.badRequest().body(Map.of(
+        "success", false,
+        "message", ex.getMessage()
+    ));
   }
 
   @ExceptionHandler(MemberNotFoundException.class)
@@ -43,6 +53,24 @@ public class GlobalExceptionHandler {
             .success(false)
             .message(ex.getMessage())
             .data(null)
+            .build());
+  }
+
+  @ExceptionHandler(UserNotFoundException.class)
+  public ResponseEntity<ApiResponse<Void>> handleUserNotFound(UserNotFoundException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ApiResponse.<Void>builder()
+            .success(false)
+            .message(ex.getMessage())
+            .build());
+  }
+
+  @ExceptionHandler(InvalidPasswordException.class)
+  public ResponseEntity<ApiResponse<Void>> handleInvalidPassword(InvalidPasswordException ex) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        .body(ApiResponse.<Void>builder()
+            .success(false)
+            .message(ex.getMessage())
             .build());
   }
 }

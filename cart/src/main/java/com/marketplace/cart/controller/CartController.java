@@ -1,6 +1,5 @@
 package com.marketplace.cart.controller;
 
-import com.marketplace.cart.exception.ProductNotFoundInCartException;
 import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.Cart;
 import com.marketplace.cart.model.CartItem;

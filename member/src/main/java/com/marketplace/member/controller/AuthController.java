@@ -30,7 +30,7 @@ public class AuthController {
   public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
     registerMemberCommand.execute(request);
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(Map.of("success", true, "message", "User created"));
+        .body(Map.of("success", true, "message", "User registered successfully"));
   }
 
   @PostMapping("/login")
