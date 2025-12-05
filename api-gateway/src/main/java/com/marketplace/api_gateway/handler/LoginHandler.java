@@ -89,9 +89,6 @@ public class LoginHandler {
       String username = user.get("username").asText();
       Long userId = user.get("id").asLong();
 
-      // -------------------------------------
-      // TOKEN REUSE WITH NULL CHECK
-      // -------------------------------------
       String existingToken = request.cookies().getFirst("token") != null ?
           request.cookies().getFirst("token").getValue() :
           null;
@@ -117,9 +114,6 @@ public class LoginHandler {
         tokenToReturn = jwtUtils.generateToken(username, userId);
       }
 
-      // -------------------------------------
-      // SECURE COOKIE
-      // -------------------------------------
       ResponseCookie cookie = ResponseCookie.from("token", tokenToReturn)
           .httpOnly(true)
           .secure(true)

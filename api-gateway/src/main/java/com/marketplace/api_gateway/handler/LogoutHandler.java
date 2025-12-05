@@ -34,7 +34,6 @@ public class LogoutHandler {
       return ServerResponse.status(401).bodyValue(res);
     }
 
-    // Check if already blacklisted
     return blacklistService.isBlacklisted(token).flatMap(isBlacklisted -> {
       if (isBlacklisted) {
         ApiResponse<Object> res =
@@ -45,7 +44,6 @@ public class LogoutHandler {
       String username = jwtUtils.extractUsername(token);
       long expiresIn = jwtUtils.getRemainingValidity(token);
 
-      // Blacklist the token
       return blacklistService.blacklistToken(token, expiresIn).flatMap(blacklisted -> {
         if (blacklisted) {
           return ServerResponse.ok()

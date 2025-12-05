@@ -23,7 +23,6 @@ public class JwtUtils {
 
   private JwtParser jwtParser;
 
-  // Initialize parser ONCE after secret is injected
   @Value("${jwt.secret}")
   public void setSecret(String secret) {
     this.secret = secret;
@@ -31,9 +30,6 @@ public class JwtUtils {
         .build();
   }
 
-  // -------------------------------
-  // Generate Token
-  // -------------------------------
   public String generateToken(String username, Long userId) {
     Map<String, Object> claims = Map.of("user_id", userId);
     return createToken(claims, username);
@@ -49,9 +45,6 @@ public class JwtUtils {
         .compact();
   }
 
-  // -------------------------------
-  // Validation
-  // -------------------------------
   public boolean validateToken(String token) {
     if (token == null || token.isBlank())
       return false;
@@ -64,9 +57,6 @@ public class JwtUtils {
     }
   }
 
-  // -------------------------------
-  // Extract Username
-  // -------------------------------
   public String extractUsername(String token) {
     try {
       return jwtParser.parseSignedClaims(token).getPayload().getSubject();
@@ -75,33 +65,22 @@ public class JwtUtils {
     }
   }
 
-  // -------------------------------
-  // Extract Claims
-  // -------------------------------
   public <T> T extractClaim(String token, Function<Claims, T> resolver) {
     Claims claims = jwtParser.parseSignedClaims(token).getPayload();
     return resolver.apply(claims);
   }
 
-  // -------------------------------
-  // Build Signing Key
-  // -------------------------------
   private SecretKey getSignKey() {
     byte[] keyBytes = Decoders.BASE64.decode(secret);
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
-  // -------------------------------
-  // Extract from Authorization header or Cookie
-  // -------------------------------
   public String extractToken(ServerRequest request) {
 
-    // Authorization header
     String auth = request.headers().firstHeader("Authorization");
     if (auth != null && auth.startsWith("Bearer "))
       return auth.substring(7).trim();
 
-    // Cookie
     if (request.cookies().getFirst("token") != null) {
       String cookieToken = request.cookies().getFirst("token").getValue();
       if (cookieToken != null && !cookieToken.isBlank()) {

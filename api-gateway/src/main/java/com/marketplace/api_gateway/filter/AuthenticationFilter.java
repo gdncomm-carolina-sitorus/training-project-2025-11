@@ -39,20 +39,17 @@ public class AuthenticationFilter implements HandlerFilterFunction<ServerRespons
     }
 
     try {
-      // Validate token signature + expiration
       if (!jwtUtils.validateToken(token)) {
         ApiResponse<Object> res = ApiResponse.builder().success(false).message("Invalid or expired token").build();
         return ServerResponse.status(401).bodyValue(res);
       }
 
-      // Check if token is blacklisted
       return blacklistService.isBlacklisted(token).flatMap(isBlacklisted -> {
         if (isBlacklisted) {
           ApiResponse<Object> res = ApiResponse.builder().success(false).message("Token has been invalidated").build();
           return ServerResponse.status(401).bodyValue(res);
         }
 
-        // Extract claims safely
         String username = jwtUtils.extractUsername(token);
         if (username == null) {
           ApiResponse<Object> res = ApiResponse.builder()
@@ -71,7 +68,6 @@ public class AuthenticationFilter implements HandlerFilterFunction<ServerRespons
           return ServerResponse.status(401).bodyValue(res);
         }
 
-        // Add user info to downstream request
         ServerRequest modifiedRequest = ServerRequest.from(request)
             .header("X-Username", username)
             .header("X-User-Id", String.valueOf(userId))

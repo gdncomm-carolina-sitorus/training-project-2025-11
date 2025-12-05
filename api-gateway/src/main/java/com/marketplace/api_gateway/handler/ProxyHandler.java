@@ -31,7 +31,6 @@ public class ProxyHandler {
     String path = uri.getPath();
     String fullUrl = baseUrl + path + (query != null ? "?" + query : "");
 
-    // Stream body (no buffering)
     Flux<DataBuffer> requestBody = request.bodyToFlux(DataBuffer.class);
 
     return webClient.method(request.method()).uri(fullUrl).headers(headers -> {
