@@ -15,16 +15,16 @@ import java.time.Duration;
 @Configuration
 public class WebClientConfig {
 
-  @Value("${gateway.webclient.connect-timeout-ms:5000}")
+  @Value("${gateway.webclient.connect-timeout-ms}")
   private int connectTimeout;
 
-  @Value("${gateway.webclient.response-timeout-seconds:10}")
+  @Value("${gateway.webclient.response-timeout-seconds}")
   private int responseTimeout;
 
-  @Value("${gateway.webclient.read-timeout-seconds:10}")
+  @Value("${gateway.webclient.read-timeout-seconds}")
   private int readTimeout;
 
-  @Value("${gateway.webclient.write-timeout-seconds:10}")
+  @Value("${gateway.webclient.write-timeout-seconds}")
   private int writeTimeout;
 
   @Bean
