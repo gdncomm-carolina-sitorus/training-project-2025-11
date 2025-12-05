@@ -5,6 +5,8 @@ import com.marketplace.cart.model.GetCartRequest;
 import com.marketplace.cart.repository.CartRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Component
 @AllArgsConstructor
@@ -13,11 +15,11 @@ public class GetCartCommand implements Command<Cart, GetCartRequest> {
   private final CartRepository cartRepository;
 
   @Override
-  public Cart execute(GetCartRequest request) {
-    return cartRepository.findById(request.getCustomerId()).orElseGet(() -> {
-      Cart cart = new Cart();
-      cart.setCustomerId(request.getCustomerId());
-      return cartRepository.save(cart);
-    });
+  public Mono<Cart> execute(GetCartRequest request) {
+    String customerId = request.getCustomerId();
+
+    return Mono.fromCallable(() -> cartRepository.findById(customerId))
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(optionalCart -> optionalCart.map(Mono::just).orElseGet(Mono::empty));
   }
 }

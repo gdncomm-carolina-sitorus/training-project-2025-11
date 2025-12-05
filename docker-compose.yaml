@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # --- Databases ---
+  member-postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: member_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - member_postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+
+  product-mongo:
+    image: mongo:6.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: product_db
+    ports:
+      - "27018:27017"
+    volumes:
+      - product_mongo_data:/data/db
+    networks:
+      - backend-network
+
+  cart-mongo:
+    image: mongo:6.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: cart_db
+    ports:
+      - "28017:27017"
+    volumes:
+      - cart_mongo_data:/data/db
+    networks:
+      - backend-network
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6380:6379"
+    networks:
+      - backend-network
+
+  # --- Services ---
+  member-service:
+    build: ./member
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_APPLICATION_NAME: member
+      SERVER_PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:postgresql://member-postgres:5432/member_db
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_SHOW_SQL: "true"
+      LOGGING_LEVEL_COM_ZAXXER_HIKARI: DEBUG
+      SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      - member-postgres
+    networks:
+      - backend-network
+
+  product-service:
+    build: ./product
+    restart: always
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_APPLICATION_NAME: product
+      SERVER_PORT: 8083
+      SPRING_DATA_MONGODB_URI: mongodb://user:password@product-mongo:27017/product_db?authSource=admin
+      SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      - product-mongo
+    networks:
+      - backend-network
+
+  cart-service:
+    build: ./cart
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_APPLICATION_NAME: cart
+      SERVER_PORT: 8084
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpassword@cart-mongo:27017/cart_db?authSource=admin
+      gateway.member-service: http://host.docker.internal:8082
+      gateway.product-service: http://host.docker.internal:8083
+    depends_on:
+      - cart-mongo
+    networks:
+      - backend-network
+
+  api-gateway:
+    build: ./api-gateway
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_APPLICATION_NAME: api-gateway
+      gateway.member-service: http://host.docker.internal:8082
+      gateway.product-service: http://host.docker.internal:8083
+      gateway.cart-service: http://host.docker.internal:8084
+      gateway.webclient.connect-timeout-ms: 5000
+      gateway.webclient.response-timeout-seconds: 10
+      gateway.webclient.read-timeout-seconds: 10
+      gateway.webclient.write-timeout-seconds: 10
+      jwt.secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      jwt.expiration-ms: 36000000
+      spring.data.redis.host: redis
+      spring.data.redis.port: 6379
+    depends_on:
+      - member-service
+      - product-service
+      - cart-service
+      - redis
+    networks:
+      - backend-network
+
+# --- Volumes ---
+volumes:
+  member_postgres_data:
+  product_mongo_data:
+  cart_mongo_data:
+
+    # --- Network ---
+networks:
+  backend-network:
+    driver: bridge

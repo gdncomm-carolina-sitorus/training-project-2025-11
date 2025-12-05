@@ -1,31 +1,46 @@
 package com.marketplace.cart.command;
 
+import com.marketplace.cart.model.ApiResponse;
 import com.marketplace.cart.model.Cart;
 import com.marketplace.cart.model.RemoveItemRequest;
 import com.marketplace.cart.repository.CartRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Component
 @AllArgsConstructor
-public class RemoveItemFromCartCommand implements Command<Cart, RemoveItemRequest> {
+public class RemoveItemFromCartCommand implements Command<ApiResponse<Cart>, RemoveItemRequest> {
 
   private final CartRepository cartRepository;
 
   @Override
-  public Cart execute(RemoveItemRequest request) {
-    Cart cart = cartRepository.findById(request.getCustomerId()).orElseGet(() -> {
-      Cart c = new Cart();
-      c.setCustomerId(request.getCustomerId());
-      return c;
-    });
+  public Mono<ApiResponse<Cart>> execute(RemoveItemRequest request) {
+    return Mono.fromCallable(() -> {
+      Cart cart = cartRepository.findByCustomerId(request.getCustomerId()).orElse(null);
 
-    if (request.getProductId() != null) {
-      cart.getItems().removeIf(i -> i.getProductId().equals(request.getProductId()));
-    } else {
-      cart.getItems().clear();
-    }
+      if (cart == null) {
+        return ApiResponse.<Cart>builder().success(false).message("Cart not found").build();
+      }
 
-    return cartRepository.save(cart);
+      String productId = request.getProductId();
+
+      if (productId != null && !productId.isBlank()) {
+        boolean removed = cart.getItems().removeIf(i -> i.getProductId().equals(productId));
+        if (!removed) {
+          return ApiResponse.<Cart>builder()
+              .success(false)
+              .message("Product not exists on cart")
+              .build();
+        }
+      } else {
+        cart.getItems().clear();
+      }
+
+      cartRepository.save(cart);
+
+      return ApiResponse.<Cart>builder().success(true).message("Item removed successfully").build();
+    }).subscribeOn(Schedulers.boundedElastic());
   }
 }

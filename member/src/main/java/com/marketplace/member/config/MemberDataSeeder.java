@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("Dev")
+@Profile("dev")
 public class MemberDataSeeder implements CommandLineRunner {
   @Autowired
   RegisterMemberCommand registerMemberCommand;

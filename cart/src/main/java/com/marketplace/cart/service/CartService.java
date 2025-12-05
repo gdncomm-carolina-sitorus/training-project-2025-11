@@ -13,7 +13,6 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 @AllArgsConstructor
@@ -25,45 +24,52 @@ public class CartService {
   private final ProductClient productClient;
   private final MemberClient memberClient;
 
-  public Cart getCart(String customerId) {
+  public Mono<Cart> getCart(String customerId) {
     return getCartCommand.execute(new GetCartRequest(customerId));
   }
 
-  public reactor.core.publisher.Mono<Cart> getEnrichedCart(String customerId) {
-    Cart cart = getCart(customerId);
+  public Mono<Cart> getCartWithDetails(String customerId) {
 
-    reactor.core.publisher.Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
-        .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
+    return getCart(customerId).flatMap(cart -> {
 
-    reactor.core.publisher.Flux<CartItem> itemsFlux =
-        reactor.core.publisher.Flux.fromIterable(cart.getItems())
-            .flatMap(item -> productClient.getProductById(item.getProductId()).map(product -> {
-              item.setProduct(product);
-              item.setSubtotal(product.getPrice()
-                  .multiply(java.math.BigDecimal.valueOf(item.getQuantity())));
-              return item;
-            }).defaultIfEmpty(item));
+      Mono<MemberDetail> memberMono = memberClient.getMemberById(customerId)
+          .defaultIfEmpty(MemberDetail.builder().id(Long.parseLong(customerId)).build());
 
-    return reactor.core.publisher.Mono.zip(memberMono, itemsFlux.collectList(), (member, items) -> {
-      cart.setCustomer(member);
-      cart.setItems(items);
-      java.math.BigDecimal total = items.stream()
-          .map(i -> i.getSubtotal() != null ? i.getSubtotal() : java.math.BigDecimal.ZERO)
-          .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-      cart.setTotalPrice(total);
-      return cart;
+      Flux<CartItem> itemsFlux = Flux.fromIterable(cart.getItems())
+          .flatMap(item -> productClient.getProductById(item.getProductId()).map(product -> {
+            item.setProduct(product);
+            item.setSubtotal(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            return item;
+          }).defaultIfEmpty(item));
+
+      return Mono.zip(memberMono, itemsFlux.collectList()).map(tuple -> {
+        MemberDetail member = tuple.getT1();
+        List<CartItem> items = tuple.getT2();
+
+        cart.setCustomer(member);
+        cart.setItems(items);
+
+        BigDecimal total = items.stream()
+            .map(i -> i.getSubtotal() != null ? i.getSubtotal() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        cart.setTotalPrice(total);
+
+        return cart;
+      });
     });
   }
 
-  public Cart addItem(String customerId, CartItem item) {
-    return addItemCommand.execute(new AddItemRequest(customerId, item));
+  public Mono<Cart> addItem(String customerId, CartItem item) {
+    return productClient.getProductById(item.getProductId())
+        .flatMap(product -> addItemCommand.execute(new AddItemRequest(customerId, item)));
   }
 
-  public Cart removeItem(String customerId, String productId) {
+  public Mono<ApiResponse<Cart>> removeItem(String customerId, String productId) {
     return removeItemCommand.execute(new RemoveItemRequest(customerId, productId));
   }
 
-  public void clearCart(String customerId) {
-    removeItemCommand.execute(new RemoveItemRequest(customerId, null));
+  public Mono<ApiResponse<Cart>> clearCart(String customerId) {
+    return removeItemCommand.execute(new RemoveItemRequest(customerId, null));
   }
 }

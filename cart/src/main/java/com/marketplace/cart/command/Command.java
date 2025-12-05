@@ -1,5 +1,7 @@
 package com.marketplace.cart.command;
 
+import reactor.core.publisher.Mono;
+
 public interface Command<R, T> {
-  R execute(T request);
+  Mono<R> execute(T request);
 }
